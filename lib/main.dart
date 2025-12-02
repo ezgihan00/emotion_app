@@ -9,91 +9,128 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  ThemeMode _themeMode = ThemeMode.light;
+
+  void _onThemeChanged(bool isDark) {
+    setState(() {
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // DEBUG yazısını kaldır
-      title: 'MoodMind',
+      title: 'Emotion App',
+      debugShowCheckedModeBanner: false,
+      themeMode: _themeMode,
+
+      // AÇIK TEMA
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7B5CFF)),
-        scaffoldBackgroundColor: const Color(0xFFF5F3FF),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF7C4DFF),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF9F5FF),
       ),
-      home: const MainScaffold(),
+
+      // KOYU TEMA
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF7C4DFF),
+          brightness: Brightness.dark,
+        ),
+      ),
+
+      home: MainScreen(
+        isDarkMode: _themeMode == ThemeMode.dark,
+        onThemeChanged: _onThemeChanged,
+      ),
     );
   }
 }
 
-class MainScaffold extends StatefulWidget {
-  const MainScaffold({super.key});
+class MainScreen extends StatefulWidget {
+  final bool isDarkMode;
+  final void Function(bool) onThemeChanged;
+
+  const MainScreen({
+    super.key,
+    required this.isDarkMode,
+    required this.onThemeChanged,
+  });
 
   @override
-  State<MainScaffold> createState() => _MainScaffoldState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = const [
-    TextAnalysisPage(),
-    VoiceAnalysisPage(),
-    ImageAnalysisPage(),
-    JournalPage(),
-    ProfilePage(),
-  ];
+  Widget _buildPage() {
+    switch (_currentIndex) {
+      case 0:
+        return const TextAnalysisPage();
+      case 1:
+        return const VoiceAnalysisPage();
+      case 2:
+        return const ImageAnalysisPage();
+      case 3:
+        return const JournalPage();
+      case 4:
+      default:
+        return ProfilePage(
+          isDarkMode: widget.isDarkMode,
+          onThemeChanged: widget.onThemeChanged,
+        );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 12,
-              offset: const Offset(0, -2),
-              color: Colors.black.withOpacity(0.05),
-            ),
-          ],
-        ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (index) {
-            setState(() => _currentIndex = index);
-          },
-          indicatorColor: const Color(0xFF7B5CFF).withOpacity(0.12),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.edit_outlined),
-              selectedIcon: Icon(Icons.edit),
-              label: 'Metin',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.mic_none),
-              selectedIcon: Icon(Icons.mic),
-              label: 'Ses',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.camera_alt_outlined),
-              selectedIcon: Icon(Icons.camera_alt),
-              label: 'Görüntü',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.book_outlined),
-              selectedIcon: Icon(Icons.book),
-              label: 'Günlük',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
-        ),
+      body: _buildPage(),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() => _currentIndex = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Sohbet',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.mic_none),
+            selectedIcon: Icon(Icons.mic),
+            label: 'Ses',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.videocam_outlined),
+            selectedIcon: Icon(Icons.videocam),
+            label: 'Görüntü',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book),
+            label: 'Günlük',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profil',
+          ),
+        ],
       ),
     );
   }

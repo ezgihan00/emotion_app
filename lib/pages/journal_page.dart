@@ -2,6 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+class JournalEntry {
+  final DateTime date;
+  final String text;
+  final XFile? image;
+
+  JournalEntry({required this.date, required this.text, this.image});
+}
+
 class JournalPage extends StatefulWidget {
   const JournalPage({super.key});
 
@@ -10,12 +18,12 @@ class JournalPage extends StatefulWidget {
 }
 
 class _JournalPageState extends State<JournalPage> {
-  final List<_JournalEntry> _entries = [];
+  final List<JournalEntry> _entries = [];
   final ImagePicker _picker = ImagePicker();
 
   Future<void> _openAddEntrySheet() async {
     final TextEditingController textController = TextEditingController();
-    File? selectedImage;
+    XFile? selectedImage;
 
     await showModalBottomSheet(
       context: context,
@@ -32,105 +40,73 @@ class _JournalPageState extends State<JournalPage> {
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
           ),
           child: StatefulBuilder(
-            builder: (context, setSheetState) {
-              Future<void> pickFromCamera() async {
-                final XFile? photo = await _picker.pickImage(
-                  source: ImageSource.camera,
-                );
-                if (photo != null) {
-                  setSheetState(() {
-                    selectedImage = File(photo.path);
-                  });
-                }
-              }
-
-              Future<void> pickFromGallery() async {
-                final XFile? image = await _picker.pickImage(
-                  source: ImageSource.gallery,
-                );
-                if (image != null) {
-                  setSheetState(() {
-                    selectedImage = File(image.path);
-                  });
-                }
-              }
-
+            builder: (ctx, setModalState) {
               return Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   const Text(
-                    "Yeni Günlük",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    "Yeni Günlük Kaydı",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: textController,
                     maxLines: 4,
                     decoration: const InputDecoration(
+                      labelText: "Bugün neler yaşadın?",
                       border: OutlineInputBorder(),
-                      hintText:
-                          "Bugün nasıldı? Neler hissettin, neler yaşadın?",
                     ),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       OutlinedButton.icon(
-                        onPressed: pickFromCamera,
-                        icon: const Icon(Icons.photo_camera_outlined),
-                        label: const Text("Kamera"),
+                        onPressed: () async {
+                          final img = await _picker.pickImage(
+                            source: ImageSource.gallery,
+                            imageQuality: 70,
+                          );
+                          if (img == null) return;
+                          setModalState(() => selectedImage = img);
+                        },
+                        icon: const Icon(Icons.photo_library_outlined),
+                        label: const Text("Fotoğraf ekle"),
                       ),
                       const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: pickFromGallery,
-                        icon: const Icon(Icons.photo_library_outlined),
-                        label: const Text("Galeri"),
-                      ),
-                      const Spacer(),
-                      ElevatedButton(
-                        onPressed: () {
-                          final text = textController.text.trim();
-                          if (text.isEmpty) return;
-
-                          setState(() {
-                            _entries.insert(
-                              0,
-                              _JournalEntry(
-                                text: text,
-                                dateTime: DateTime.now(),
-                                image: selectedImage,
-                              ),
-                            );
-                          });
-                          Navigator.of(ctx).pop();
-                        },
-                        child: const Text("Kaydet"),
-                      ),
+                      if (selectedImage != null)
+                        const Icon(Icons.check_circle, color: Colors.green),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  if (selectedImage != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        selectedImage!,
-                        height: 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: () {
+                        final text = textController.text.trim();
+                        if (text.isEmpty) return;
+                        setState(() {
+                          _entries.add(
+                            JournalEntry(
+                              date: DateTime.now(),
+                              text: text,
+                              image: selectedImage,
+                            ),
+                          );
+                        });
+                        Navigator.of(ctx).pop();
+                      },
+                      child: const Text("Kaydı Ekle"),
                     ),
+                  ),
                 ],
               );
             },
@@ -140,66 +116,47 @@ class _JournalPageState extends State<JournalPage> {
     );
   }
 
-  String _formatDate(DateTime dt) {
-    // çok basit format
-    return "${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}";
+  String _formatDate(DateTime date) {
+    return "${date.day.toString().padLeft(2, "0")}."
+        "${date.month.toString().padLeft(2, "0")}."
+        "${date.year}";
   }
 
   @override
   Widget build(BuildContext context) {
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+
     return SafeArea(
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F3FF),
-        floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: scaffoldBg,
+        floatingActionButton: FloatingActionButton(
           onPressed: _openAddEntrySheet,
-          icon: const Icon(Icons.add),
-          label: const Text("Günlük Ekle"),
+          child: const Icon(Icons.add),
         ),
         body: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Günlük",
+                "Duygu Günlüğü",
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               const Text(
-                "Duygularını bir defter gibi burada sakla. İstersen fotoğraf da ekleyebilirsin.",
+                "Gün içinde hissettiklerini buraya yazabilir, istersen bir fotoğrafla "
+                "beraber kaydedebilirsin.",
                 style: TextStyle(fontSize: 14, color: Colors.black54),
               ),
               const SizedBox(height: 16),
               Expanded(
                 child:
                     _entries.isEmpty
-                        ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.menu_book_outlined,
-                                size: 64,
-                                color: Colors.grey.shade400,
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                "Henüz bir günlük yok.",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                "Sağ alttan + butonuna basarak ilk kaydını oluşturabilirsin.",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            ],
+                        ? const Center(
+                          child: Text(
+                            "Henüz bir günlük kaydın yok.\n"
+                            "Sağ alttaki + butonuna dokunarak başlayabilirsin.",
+                            textAlign: TextAlign.center,
                           ),
                         )
                         : ListView.builder(
@@ -207,57 +164,49 @@ class _JournalPageState extends State<JournalPage> {
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
                             return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () {
-                                  // ileride detay modali / duygusal analiz grafiği vs. ekleyebilirsin
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.menu_book, size: 20),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            _formatDate(entry.dateTime),
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        entry.text,
-                                        maxLines: 3,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      if (entry.image != null) ...[
-                                        const SizedBox(height: 8),
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: Image.file(
-                                            entry.image!,
-                                            height: 140,
-                                            width: double.infinity,
-                                            fit: BoxFit.cover,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.calendar_today,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _formatDate(entry.date),
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      entry.text,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    if (entry.image != null) ...[
+                                      const SizedBox(height: 8),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.file(
+                                          File(entry.image!.path),
+                                          height: 160,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
                                     ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             );
@@ -270,16 +219,4 @@ class _JournalPageState extends State<JournalPage> {
       ),
     );
   }
-}
-
-class _JournalEntry {
-  final String text;
-  final DateTime dateTime;
-  final File? image;
-
-  _JournalEntry({
-    required this.text,
-    required this.dateTime,
-    required this.image,
-  });
 }

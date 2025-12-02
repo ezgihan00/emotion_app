@@ -35,14 +35,13 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
       _state = RecordingState.analyzing;
     });
 
-    // Şimdilik burada "ses -> metin -> duygu analizi" rolü yapıyoruz
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() {
         _state = RecordingState.idle;
         _resultText =
             "Demo sonuç: Konuşma sakin ve orta düzeyde pozitif algılandı.\n"
-            "Gerçekte burada ses -> metin -> NLP pipeline çalışacak.";
+            "Gerçekte burada ses → metin → duygu analizi pipeline'ı çalışacak.";
       });
     });
   }
@@ -53,14 +52,16 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
     return "$m:$s";
   }
 
-  Color _micColor() {
+  Color _micColor(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     switch (_state) {
       case RecordingState.recording:
         return const Color(0xFFF44336);
       case RecordingState.analyzing:
         return Colors.orange;
       case RecordingState.idle:
-        return const Color(0xFF7B5CFF);
+      default:
+        return scheme.primary;
     }
   }
 
@@ -73,150 +74,155 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
   @override
   Widget build(BuildContext context) {
     final isRecording = _state == RecordingState.recording;
+    final isAnalyzing = _state == RecordingState.analyzing;
+    final micColor = _micColor(context);
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Ses Analizi",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "Konuşmanı kaydet, sistem ses tonuna göre duygu analizi yapsın. "
-              "Şimdilik sadece demo akışını gösteriyoruz.",
-              style: TextStyle(fontSize: 14, color: Colors.black54),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: Column(
-                children: [
-                  // Dalgaformu / kart
-                  Expanded(
-                    child: Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      elevation: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        width: double.infinity,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              isRecording
-                                  ? "Kaydediliyor..."
-                                  : _state == RecordingState.analyzing
-                                  ? "Analiz ediliyor..."
-                                  : "Hazır",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: _micColor(),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _formatTime(_seconds),
-                              style: const TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            // Basit sahte dalga efektleri
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: List.generate(12, (index) {
-                                final height =
-                                    isRecording
-                                        ? (40 + (index % 4) * 10).toDouble()
-                                        : 20.0 + (index % 3) * 5;
-                                return AnimatedContainer(
-                                  duration: const Duration(milliseconds: 300),
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 2,
-                                  ),
-                                  width: 6,
-                                  height: height,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: _micColor().withOpacity(
-                                      isRecording ? 0.9 : 0.4,
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Mikrofon butonu
-                  Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        if (_state == RecordingState.idle) {
-                          _startRecording();
-                        } else if (_state == RecordingState.recording) {
-                          _stopRecording();
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        height: 90,
-                        width: 90,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _micColor(),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _micColor().withOpacity(0.4),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          isRecording ? Icons.stop : Icons.mic,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    isRecording
-                        ? "Durdurmak için yeniden dokun."
-                        : "Konuşmaya başlamak için mikrofona dokun.",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_resultText != null)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        color: Colors.deepPurple.withOpacity(0.07),
-                      ),
-                      child: Text(
-                        _resultText!,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ),
-                ],
+      child: Scaffold(
+        backgroundColor: scaffoldBg,
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Ses Analizi",
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              const Text(
+                "Konuşmanı kaydet, sistem ses tonuna göre duygunu tahmin etsin. "
+                "Şimdilik sadece demo akışını gösteriyoruz.",
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        elevation: 4,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                isRecording
+                                    ? "Kaydediliyor..."
+                                    : isAnalyzing
+                                    ? "Analiz ediliyor..."
+                                    : "Hazır",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: micColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _formatTime(_seconds),
+                                style: const TextStyle(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(12, (index) {
+                                  final baseHeight = isRecording ? 40.0 : 20.0;
+                                  final extra =
+                                      isRecording
+                                          ? (index % 4) * 10.0
+                                          : (index % 3) * 5.0;
+                                  final height = baseHeight + extra;
+
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    margin: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                    ),
+                                    width: 6,
+                                    height: height,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      color: micColor.withOpacity(
+                                        isRecording ? 0.9 : 0.4,
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (_state == RecordingState.idle) {
+                            _startRecording();
+                          } else if (_state == RecordingState.recording) {
+                            _stopRecording();
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          height: 90,
+                          width: 90,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: micColor,
+                            boxShadow: [
+                              BoxShadow(
+                                color: micColor.withOpacity(0.4),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isRecording ? Icons.stop : Icons.mic,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      isRecording
+                          ? "Durdurmak için mikrofona tekrar dokun."
+                          : "Konuşmaya başlamak için mikrofona dokun.",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    if (_resultText != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                        ),
+                        child: Text(
+                          _resultText!,
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
