@@ -1,5 +1,5 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
+import '../services/api_demo.dart';
 
 class TextAnalysisPage extends StatefulWidget {
   const TextAnalysisPage({super.key});
@@ -34,9 +34,9 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     _messages.add(
       ChatMessage(
         text:
-            "Merhaba, ben duygusal destek asistanın 💜\n"
+            "Merhaba, ben duygusal destek asistanın \n"
             "Bana gününü, hislerini, aklındaki her şeyi yazabilirsin. "
-            "Mesajlarını duygusal olarak analiz etmeye çalışacağım.",
+            "Mesajlarını duygusal olarak analiz edeceğim.",
         isUser: false,
       ),
     );
@@ -60,15 +60,34 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     });
     _scrollToBottom();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final result = await SentimentApi.analyze(text);
 
-    final reply = _fakeAnalyze(text);
-
-    setState(() {
-      _messages.add(reply);
-      _isSending = false;
-    });
-    _scrollToBottom();
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            text: "Seni anlıyorum ",
+            isUser: false,
+            emotion: result["label"],
+            score: (result["score"] as num).toDouble(),
+          ),
+        );
+      });
+    } catch (e) {
+      setState(() {
+        _messages.add(
+          ChatMessage(
+            text: "Sunucuya bağlanılamadı 😔 Lütfen tekrar dene.",
+            isUser: false,
+          ),
+        );
+      });
+    } finally {
+      setState(() {
+        _isSending = false;
+      });
+      _scrollToBottom();
+    }
   }
 
   void _scrollToBottom() {
@@ -82,74 +101,19 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
     });
   }
 
-  ChatMessage _fakeAnalyze(String userText) {
-    final rand = Random();
-    final emotions = ["Mutlu", "Üzgün", "Kaygılı", "Öfkeli", "Yorgun", "Nötr"];
-    final emotion = emotions[rand.nextInt(emotions.length)];
-    final score = 0.70 + rand.nextDouble() * 0.30; // 0.70–1.00
-    final lower = userText.toLowerCase();
-
-    String replyText;
-    if (lower.contains("iyi") || lower.contains("mutlu")) {
-      replyText =
-          "İyi hissetmene sevindim 🌟 Bu duyguyu sürdürmek için neler yapıyorsun, biraz anlatmak ister misin?";
-    } else if (lower.contains("kötü") ||
-        lower.contains("üzgün") ||
-        lower.contains("mutsuz")) {
-      replyText =
-          "Üzgün hissettiğini duymak zor 😔 İstersen detaylıca anlat, birlikte adım adım bakabiliriz.";
-    } else if (lower.contains("kaygı") ||
-        lower.contains("anksiyete") ||
-        lower.contains("endişe")) {
-      replyText =
-          "Kaygı yaşamak çok yorucu olabiliyor… 😥 Şu an seni en çok endişelendiren şey ne?";
-    } else {
-      replyText =
-          "Anlattıklarını anlıyorum 💜 Bu durum seni nasıl hissettirdi, biraz daha açmak ister misin?";
-    }
-
-    replyText +=
-        "\n\n(Analiz sonucu: $emotion, güven: ${(score * 100).toStringAsFixed(1)}%)";
-
-    return ChatMessage(
-      text: replyText,
-      isUser: false,
-      emotion: emotion,
-      score: score,
-    );
-  }
-
-  Color _bubbleColor(ChatMessage msg, BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    if (msg.isUser) {
-      return scheme.primary;
-    } else {
-      // açık modda açık, koyu modda koyu ama kontrastı iyi bir yüzey
-      return scheme.surfaceVariant;
-    }
-  }
-
-  Alignment _bubbleAlign(ChatMessage msg) {
-    return msg.isUser ? Alignment.centerRight : Alignment.centerLeft;
-  }
-
-  CrossAxisAlignment _columnAlign(ChatMessage msg) {
-    return msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
-  }
-
   Color _emotionColor(String? emotion) {
-    if (emotion == null) return Colors.grey.shade500;
+    if (emotion == null) return Colors.grey;
     switch (emotion.toLowerCase()) {
+      case "pozitif":
       case "mutlu":
         return const Color(0xFF4CAF50);
+      case "negatif":
       case "üzgün":
         return const Color(0xFFF44336);
       case "kaygılı":
         return Colors.orange;
       case "öfkeli":
         return const Color(0xFFD32F2F);
-      case "yorgun":
-        return Colors.blueGrey;
       case "nötr":
       default:
         return Colors.grey;
@@ -158,29 +122,26 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
 
   Widget _buildMessageBubble(ChatMessage msg) {
     final scheme = Theme.of(context).colorScheme;
-    final bgColor = _bubbleColor(msg, context);
-
-    // ✅ kullanıcı balonu: onPrimary (genelde beyaz)
-    // ✅ asistan balonu: onSurface (dark/light'a göre otomatik ayarlanır)
+    final bgColor = msg.isUser ? scheme.primary : scheme.surfaceVariant;
     final textColor = msg.isUser ? scheme.onPrimary : scheme.onSurface;
 
     return Align(
-      alignment: _bubbleAlign(msg),
+      alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Column(
-        crossAxisAlignment: _columnAlign(msg),
+        crossAxisAlignment:
+            msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!msg.isUser && msg.emotion != null && msg.score != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4, left: 4, right: 4),
+              padding: const EdgeInsets.only(bottom: 4),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  color: _emotionColor(msg.emotion).withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _emotionColor(msg.emotion).withOpacity(0.6),
-                    width: 0.8,
-                  ),
+                  border: Border.all(color: _emotionColor(msg.emotion)),
                 ),
                 child: Text(
                   "${msg.emotion} • ${(msg.score! * 100).toStringAsFixed(0)}%",
@@ -204,18 +165,8 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                 bottomLeft: const Radius.circular(16),
                 bottomRight: const Radius.circular(16),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
-            child: Text(
-              msg.text,
-              style: TextStyle(color: textColor, fontSize: 14),
-            ),
+            child: Text(msg.text, style: TextStyle(color: textColor)),
           ),
         ],
       ),
@@ -224,19 +175,13 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     final scheme = Theme.of(context).colorScheme;
 
     return SafeArea(
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 8,
-              bottom: 4,
-            ),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -250,8 +195,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Buraya yazdığın mesajlar duygusal olarak analiz edilecek. "
-                  "Şimdilik analizler demo (mock), backend hazır olduğunda gerçek modele bağlanacak.",
+                  "Yazdığın mesajlar backend üzerinden gerçek zamanlı analiz edilir.",
                   style: TextStyle(
                     fontSize: 12,
                     color: scheme.onSurfaceVariant,
@@ -260,47 +204,25 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
               ],
             ),
           ),
-          const SizedBox(height: 4),
           Expanded(
-            child: Container(
-              color: scaffoldBg,
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final msg = _messages[index];
-                  return _buildMessageBubble(msg);
-                },
-              ),
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _messages.length,
+              itemBuilder:
+                  (context, index) => _buildMessageBubble(_messages[index]),
             ),
           ),
-          // Alt input bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, -2),
-                ),
-              ],
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(color: scheme.surface),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: scheme.surfaceVariant.withOpacity(0.6),
+                      color: scheme.surfaceVariant,
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: TextField(
@@ -309,7 +231,7 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                       maxLines: 4,
                       style: TextStyle(color: scheme.onSurface),
                       decoration: InputDecoration(
-                        hintText: "Bugün nasılsın, neler yaşadın?",
+                        hintText: "Bugün nasılsın?",
                         border: InputBorder.none,
                         hintStyle: TextStyle(color: scheme.onSurfaceVariant),
                       ),
@@ -317,28 +239,17 @@ class _TextAnalysisPageState extends State<TextAnalysisPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: scheme.primary,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: IconButton(
-                    onPressed: _isSending ? null : _sendMessage,
-                    icon:
-                        _isSending
-                            ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                            : const Icon(Icons.send_rounded),
-                    color: scheme.onPrimary,
-                  ),
+                IconButton(
+                  onPressed: _isSending ? null : _sendMessage,
+                  icon:
+                      _isSending
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.send_rounded),
+                  color: scheme.primary,
                 ),
               ],
             ),
