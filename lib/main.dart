@@ -4,6 +4,7 @@ import 'pages/voice_analysis_page.dart';
 import 'pages/image_analysis_page.dart';
 import 'pages/journal_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/login_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,7 +33,6 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
 
-      // AÇIK TEMA
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -42,7 +42,6 @@ class _MyAppState extends State<MyApp> {
         scaffoldBackgroundColor: const Color(0xFFF9F5FF),
       ),
 
-      // KOYU TEMA
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -51,10 +50,8 @@ class _MyAppState extends State<MyApp> {
         ),
       ),
 
-      home: MainScreen(
-        isDarkMode: _themeMode == ThemeMode.dark,
-        onThemeChanged: _onThemeChanged,
-      ),
+      // 🔐 ŞİMDİLİK DİREKT LOGIN'DEN BAŞLASIN
+      home: LoginPage(),
     );
   }
 }

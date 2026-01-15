@@ -19,7 +19,6 @@ class SentimentApi {
     );
 
     if (response.statusCode == 200) {
-      // 🔥 TÜRKÇE KARAKTERLER BURADA DÜZELİR
       return jsonDecode(utf8.decode(response.bodyBytes));
     } else {
       throw Exception("API error: ${response.statusCode}");
