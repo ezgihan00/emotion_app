@@ -10,17 +10,38 @@ class VoiceAnalysisPage extends StatefulWidget {
 
 enum RecordingState { idle, recording, analyzing }
 
-class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
+class _VoiceAnalysisPageState extends State<VoiceAnalysisPage>
+    with SingleTickerProviderStateMixin {
   RecordingState _state = RecordingState.idle;
   int _seconds = 0;
   Timer? _timer;
   String? _resultText;
+  String? _resultEmotion;
+
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   void _startRecording() {
     setState(() {
       _state = RecordingState.recording;
       _seconds = 0;
       _resultText = null;
+      _resultEmotion = null;
     });
 
     _timer?.cancel();
@@ -35,13 +56,27 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
       _state = RecordingState.analyzing;
     });
 
+    // Demo: 2 saniye bekle ve rastgele sonuç göster
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
+
+      // Demo sonuçları
+      final results = [
+        {"text": "Konuşmanız sakin ve dengeli algılandı.", "emotion": "Nötr"},
+        {"text": "Sesinizde mutluluk tonu tespit edildi.", "emotion": "Mutlu"},
+        {
+          "text": "Konuşmanızda hafif bir endişe sezildi.",
+          "emotion": "Kaygılı",
+        },
+        {"text": "Ses tonunuz yorgun ve durgun algılandı.", "emotion": "Üzgün"},
+      ];
+
+      final random = results[DateTime.now().second % results.length];
+
       setState(() {
         _state = RecordingState.idle;
-        _resultText =
-            "Demo sonuç: Konuşma sakin ve orta düzeyde pozitif algılandı.\n"
-            "Gerçekte burada ses → metin → duygu analizi pipeline'ı çalışacak.";
+        _resultText = random["text"];
+        _resultEmotion = random["emotion"];
       });
     });
   }
@@ -65,10 +100,19 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  Color _emotionColor(String? emotion) {
+    switch (emotion) {
+      case "Mutlu":
+        return Colors.green;
+      case "Üzgün":
+        return Colors.blue;
+      case "Kaygılı":
+        return Colors.orange;
+      case "Sinirli":
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
   }
 
   @override
@@ -76,30 +120,67 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
     final isRecording = _state == RecordingState.recording;
     final isAnalyzing = _state == RecordingState.analyzing;
     final micColor = _micColor(context);
-    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
+    final scheme = Theme.of(context).colorScheme;
 
     return SafeArea(
       child: Scaffold(
-        backgroundColor: scaffoldBg,
+        backgroundColor: scheme.surface,
         body: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                "Ses Analizi",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              // Header
+              Row(
+                children: [
+                  Icon(Icons.mic, color: scheme.primary, size: 28),
+                  const SizedBox(width: 8),
+                  const Text(
+                    "Ses Analizi",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
-              const Text(
-                "Konuşmanı kaydet, sistem ses tonuna göre duygunu tahmin etsin. "
-                "Şimdilik sadece demo akışını gösteriyoruz.",
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+              Text(
+                "Konuşmanı kaydet, ses tonundan duygunu analiz edelim",
+                style: TextStyle(fontSize: 14, color: scheme.onSurfaceVariant),
               ),
+
+              // Demo uyarısı
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.amber,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Bu özellik şu an demo modunda çalışıyor. Gerçek ses analizi yakında eklenecek.",
+                        style: TextStyle(fontSize: 12, color: scheme.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 24),
+
+              // Ana içerik
               Expanded(
                 child: Column(
                   children: [
+                    // Kayıt kartı
                     Expanded(
                       child: Card(
                         shape: RoundedRectangleBorder(
@@ -107,10 +188,11 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
                         ),
                         elevation: 4,
                         child: Padding(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(24),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              // Durum metni
                               Text(
                                 isRecording
                                     ? "Kaydediliyor..."
@@ -118,52 +200,75 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
                                     ? "Analiz ediliyor..."
                                     : "Hazır",
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   fontWeight: FontWeight.w600,
                                   color: micColor,
                                 ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 16),
+
+                              // Zamanlayıcı
                               Text(
                                 _formatTime(_seconds),
                                 style: const TextStyle(
-                                  fontSize: 30,
+                                  fontSize: 48,
                                   fontWeight: FontWeight.bold,
+                                  fontFamily: 'monospace',
                                 ),
                               ),
-                              const SizedBox(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: List.generate(12, (index) {
-                                  final baseHeight = isRecording ? 40.0 : 20.0;
-                                  final extra =
-                                      isRecording
-                                          ? (index % 4) * 10.0
-                                          : (index % 3) * 5.0;
-                                  final height = baseHeight + extra;
+                              const SizedBox(height: 32),
 
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 2,
-                                    ),
-                                    width: 6,
-                                    height: height,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(12),
-                                      color: micColor.withOpacity(
-                                        isRecording ? 0.9 : 0.4,
-                                      ),
-                                    ),
-                                  );
-                                }),
+                              // Dalga animasyonu
+                              SizedBox(
+                                height: 60,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(16, (index) {
+                                    return AnimatedBuilder(
+                                      animation: _pulseController,
+                                      builder: (context, child) {
+                                        final baseHeight =
+                                            isRecording ? 50.0 : 20.0;
+                                        final variation =
+                                            isRecording
+                                                ? (index % 4 + 1) *
+                                                    8.0 *
+                                                    _pulseController.value
+                                                : (index % 3) * 5.0;
+                                        final height = baseHeight + variation;
+
+                                        return AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 100,
+                                          ),
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 2,
+                                          ),
+                                          width: 5,
+                                          height: height.clamp(10.0, 60.0),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            color: micColor.withOpacity(
+                                              isRecording ? 0.9 : 0.3,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 24),
+
+                    // Mikrofon butonu
                     Center(
                       child: GestureDetector(
                         onTap: () {
@@ -175,47 +280,91 @@ class _VoiceAnalysisPageState extends State<VoiceAnalysisPage> {
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          height: 90,
-                          width: 90,
+                          height: 100,
+                          width: 100,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: micColor,
                             boxShadow: [
                               BoxShadow(
                                 color: micColor.withOpacity(0.4),
-                                blurRadius: 16,
-                                offset: const Offset(0, 6),
+                                blurRadius: isRecording ? 24 : 12,
+                                spreadRadius: isRecording ? 4 : 0,
                               ),
                             ],
                           ),
                           child: Icon(
-                            isRecording ? Icons.stop : Icons.mic,
+                            isRecording
+                                ? Icons.stop_rounded
+                                : Icons.mic_rounded,
                             color: Colors.white,
-                            size: 40,
+                            size: 48,
                           ),
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     Text(
                       isRecording
-                          ? "Durdurmak için mikrofona tekrar dokun."
-                          : "Konuşmaya başlamak için mikrofona dokun.",
+                          ? "Durdurmak için mikrofona dokun"
+                          : isAnalyzing
+                          ? "Lütfen bekle..."
+                          : "Başlamak için mikrofona dokun",
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
-                    const SizedBox(height: 16),
+
+                    const SizedBox(height: 20),
+
+                    // Sonuç
                     if (_resultText != null)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          color: Theme.of(context).colorScheme.primaryContainer,
+                          color: _emotionColor(_resultEmotion).withOpacity(0.1),
+                          border: Border.all(
+                            color: _emotionColor(
+                              _resultEmotion,
+                            ).withOpacity(0.3),
+                          ),
                         ),
-                        child: Text(
-                          _resultText!,
-                          style: const TextStyle(fontSize: 14),
+                        child: Column(
+                          children: [
+                            if (_resultEmotion != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 4,
+                                ),
+                                margin: const EdgeInsets.only(bottom: 8),
+                                decoration: BoxDecoration(
+                                  color: _emotionColor(_resultEmotion),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  _resultEmotion!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            Text(
+                              _resultText!,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],

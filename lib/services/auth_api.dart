@@ -1,91 +1,194 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_config.dart';
+
+/// API yanıt modeli
+class ApiResponse {
+  final bool ok;
+  final int? statusCode;
+  final String message;
+  final Map<String, dynamic>? data;
+
+  ApiResponse({
+    required this.ok,
+    this.statusCode,
+    this.message = "",
+    this.data,
+  });
+}
 
 class AuthApi {
-  static const String baseUrl = "http://10.0.2.2:5000";
-  // Emulator için localhost = 10.0.2.2
-
   static String? token;
 
-  // 🔐 TOKEN KAYDET
+  // ============ TOKEN YÖNETİMİ ============
   static Future<void> saveToken(String value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("token", value);
+    await prefs.setString("auth_token", value);
     token = value;
   }
 
-  // 🔐 TOKEN OKU
   static Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
-    token = prefs.getString("token");
+    token = prefs.getString("auth_token");
   }
 
-  // 🔐 TOKEN SİL (LOGOUT)
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove("token");
+    await prefs.remove("auth_token");
     token = null;
   }
 
-  // 📝 REGISTER
-  static Future<bool> register({
+  // ============ AUTH ENDPOINTS ============
+
+  /// Kayıt ol - ApiResponse döndürür
+  static Future<ApiResponse> register({
     required String email,
     required String username,
     required String password,
   }) async {
-    final res = await http.post(
-      Uri.parse("$baseUrl/api/auth/register"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "email": email,
-        "username": username,
-        "password": password,
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse("${ApiConfig.baseUrl}/api/auth/register"),
+            headers: {
+              "Content-Type": "application/json",
+              "Accept": "application/json",
+            },
+            body: jsonEncode({
+              "email": email,
+              "username": username,
+              "password": password,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
 
-    return res.statusCode == 200 || res.statusCode == 201;
+      final body = utf8.decode(response.bodyBytes);
+      Map<String, dynamic>? jsonData;
+
+      try {
+        jsonData = jsonDecode(body);
+      } catch (_) {}
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResponse(
+          ok: true,
+          statusCode: response.statusCode,
+          message: jsonData?["message"] ?? "Kayıt başarılı",
+          data: jsonData,
+        );
+      } else {
+        return ApiResponse(
+          ok: false,
+          statusCode: response.statusCode,
+          message:
+              jsonData?["detail"] ?? jsonData?["message"] ?? "Kayıt başarısız",
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        ok: false,
+        statusCode: null,
+        message: "Bağlantı hatası: $e",
+      );
+    }
   }
 
-  // 🔑 LOGIN
-  static Future<bool> login({
+  /// Giriş yap - ApiResponse döndürür
+  static Future<ApiResponse> login({
     required String username,
     required String password,
   }) async {
-    final res = await http.post(
-      Uri.parse("$baseUrl/api/auth/login"),
-      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: {"username": username, "password": password},
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse("${ApiConfig.baseUrl}/api/auth/login"),
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Accept": "application/json",
+            },
+            body: {
+              "username": username,
+              "password": password,
+              "grant_type": "password",
+            },
+          )
+          .timeout(const Duration(seconds: 15));
 
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
-      await saveToken(data["access_token"]);
-      return true;
+      final body = utf8.decode(response.bodyBytes);
+      Map<String, dynamic>? jsonData;
+
+      try {
+        jsonData = jsonDecode(body);
+      } catch (_) {}
+
+      if (response.statusCode == 200) {
+        final accessToken = jsonData?["access_token"];
+
+        if (accessToken is String && accessToken.isNotEmpty) {
+          await saveToken(accessToken);
+          return ApiResponse(
+            ok: true,
+            statusCode: response.statusCode,
+            message: "Giriş başarılı",
+            data: jsonData,
+          );
+        } else {
+          return ApiResponse(
+            ok: false,
+            statusCode: response.statusCode,
+            message: "Token alınamadı",
+          );
+        }
+      } else {
+        return ApiResponse(
+          ok: false,
+          statusCode: response.statusCode,
+          message:
+              jsonData?["detail"] ??
+              jsonData?["message"] ??
+              "Kullanıcı adı veya şifre hatalı",
+        );
+      }
+    } catch (e) {
+      return ApiResponse(
+        ok: false,
+        statusCode: null,
+        message: "Bağlantı hatası: $e",
+      );
     }
-
-    return false;
   }
 
-  // 👤 ME (KULLANICI BİLGİSİ)
+  /// Kullanıcı bilgisi getir
   static Future<Map<String, dynamic>?> getMe() async {
     await loadToken();
     if (token == null) return null;
 
-    final res = await http.get(
-      Uri.parse("$baseUrl/api/auth/me"),
-      headers: {"Authorization": "Bearer $token"},
-    );
+    try {
+      final response = await http
+          .get(
+            Uri.parse("${ApiConfig.baseUrl}/api/auth/me"),
+            headers: {
+              "Authorization": "Bearer $token",
+              "Accept": "application/json",
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
-    if (res.statusCode == 200) {
-      return jsonDecode(res.body);
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+
+      if (response.statusCode == 401) {
+        await clearToken();
+      }
+
+      return null;
+    } catch (_) {
+      return null;
     }
-
-    return null;
   }
 
-  // 🚪 LOGOUT
-  static Future<void> logout() async {
-    await clearToken();
-  }
+  /// Çıkış yap
+  static Future<void> logout() async => clearToken();
 }
